@@ -24,6 +24,7 @@
 
 # Imports
 
+import argparse
 import math
 import re
 import subprocess
@@ -93,7 +94,7 @@ def binary_search(k: int, fftlen: int, start: int, finish: int) -> Tuple[int, in
     return left, left
 
 
-def loop(k: int, fftlen_max: int) -> None:
+def loop(k: int, fftlen_max: Optional[int], n_max: Optional[int]) -> None:
     """Loop until the maximum FFT length is reached."""
     with open('testinput.new.txt', 'wt') as testinput, open('maxlen.new.txt', 'wt') as maxlen:
         print('1000000000000:M:1:2:258', file=testinput)
@@ -101,7 +102,7 @@ def loop(k: int, fftlen_max: int) -> None:
         last_fftlen = 32
         next_n = start_n
         next_fftlen = last_fftlen
-        while last_fftlen <= fftlen_max:
+        while (fftlen_max and last_fftlen <= fftlen_max) or (n_max and start_n <= n_max):
             while next_fftlen == last_fftlen:
                 next_n = int(next_n * 1.02)
                 next_fftlen = get_fftlen_from_test(k, next_n) or last_fftlen
@@ -123,13 +124,20 @@ def loop(k: int, fftlen_max: int) -> None:
 
 def start() -> None:
     """Main starting function."""
-    fftlen_max = parse_formatted_fftlen(sys.argv[1])
-    try:
-        k = int(sys.argv[2])
-    except IndexError:
-        k = 100005
+    parser = argparse.ArgumentParser(description='Generate maxlen.txt and LLR test input for use with LLRTools.')
+    parser.add_argument('-v', '--verbose', action='store_true', help='increase output verbosity')
+    parser.add_argument('-k', type=int, default=100005, help='set testing k')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-n', type=int, help='set maximum n')
+    group.add_argument('-f', '--fftlen', type=str, help='set maximum FFT length')
+    args = parser.parse_args()
+    global VERBOSE
+    VERBOSE = args.verbose
+    fftlen_max = parse_formatted_fftlen(args.fftlen) if args.fftlen else None
+    n_max = args.n
+    k = args.k
     fftlen_lib.change_k(k)
-    loop(k, fftlen_max)
+    loop(k, fftlen_max, n_max)
 
 
 if __name__ == '__main__':
