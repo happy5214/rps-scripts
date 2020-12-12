@@ -29,12 +29,15 @@ import math
 import re
 import subprocess
 import sys
+import tempfile
 from typing import Optional, Tuple
 
 import fftlen as fftlen_lib
 
-# Global switch
+# Globals
 VERBOSE = False
+
+temp_dir_name = ''
 
 
 # Processing code
@@ -57,7 +60,7 @@ def parse_formatted_fftlen(fftlen: str) -> int:
 def get_fftlen_from_test(k: int, n: int) -> Optional[int]:
     """Get an FFT length from parsing the output of an LLR test."""
     try:
-        proc = subprocess.run(['./llr', '-wtemp', '-d', f'-q{k}*2^{n}-1'], capture_output=True, timeout=2)
+        proc = subprocess.run(['./llr', f'-w{temp_dir_name}', '-d', f'-q{k}*2^{n}-1'], capture_output=True, timeout=2)
         output = proc.stdout
     except subprocess.TimeoutExpired as ex:
         output = ex.output
@@ -137,7 +140,10 @@ def start() -> None:
     n_max = args.n
     k = args.k
     fftlen_lib.change_k(k)
-    loop(k, fftlen_max, n_max)
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        global temp_dir_name
+        temp_dir_name = tmpdirname
+        loop(k, fftlen_max, n_max)
 
 
 if __name__ == '__main__':
