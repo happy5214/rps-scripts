@@ -97,12 +97,12 @@ def binary_search(k: int, fftlen: int, start: int, finish: int) -> Tuple[int, in
     return left, left
 
 
-def loop(k: int, fftlen_max: Optional[int], n_max: Optional[int]) -> None:
+def loop(k: int, fftlen_max: Optional[int], n_max: Optional[int], n_min: Optional[int]) -> None:
     """Loop until the maximum FFT length is reached."""
     with open('testinput.new.txt', 'wt') as testinput, open('maxlen.new.txt', 'wt') as maxlen:
         print('1000000000000:M:1:2:258', file=testinput)
-        start_n = 350
-        last_fftlen = 32
+        start_n = n_min or fftlen_lib.n_max(32, 700)
+        last_fftlen = get_fftlen_from_test(k, n_min) if n_min else 32
         next_n = start_n
         next_fftlen = last_fftlen
         while (fftlen_max and last_fftlen <= fftlen_max) or (n_max and start_n <= n_max):
@@ -130,6 +130,7 @@ def start() -> None:
     parser = argparse.ArgumentParser(description='Generate maxlen.txt and LLR test input for use with LLRTools.')
     parser.add_argument('-v', '--verbose', action='store_true', help='increase output verbosity')
     parser.add_argument('-k', type=int, default=100005, help='set testing k')
+    parser.add_argument('-m', type=int, help='set minimum n')
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-n', type=int, help='set maximum n')
     group.add_argument('-f', '--fftlen', type=str, help='set maximum FFT length')
@@ -138,12 +139,13 @@ def start() -> None:
     VERBOSE = args.verbose
     fftlen_max = parse_formatted_fftlen(args.fftlen) if args.fftlen else None
     n_max = args.n
+    n_min = args.m
     k = args.k
     fftlen_lib.change_k(k)
     with tempfile.TemporaryDirectory() as tmpdirname:
         global temp_dir_name
         temp_dir_name = tmpdirname
-        loop(k, fftlen_max, n_max)
+        loop(k, fftlen_max, n_max, n_min)
 
 
 if __name__ == '__main__':
