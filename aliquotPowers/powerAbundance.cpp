@@ -64,7 +64,7 @@ void merge_factors(FactorVector & factors) {
 void factor(mpz_class n, FactorVector & factors) {
     factors.clear();
 
-    for (FactorVector::size_type j = 0; j < trial_primes.size(); ++j) {
+    for (vector<unsigned int>::size_type j = 0; j < trial_primes.size(); ++j) {
         while (mpz_divisible_ui_p(n.get_mpz_t(), trial_primes[j])) {
             mpz_class tp(trial_primes[j]);
             found_factor(tp, factors);
