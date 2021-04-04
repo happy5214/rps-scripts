@@ -11,11 +11,14 @@
  */
 
 #include <cstdint>
+#include <cstdlib>
 #include <vector>
 #include <string>
 #include <iostream>
 #include <fstream>
 #include <sstream>
+
+#include <pthread.h>
 
 #include <gmpxx.h>
 #include <primesieve.hpp>
@@ -127,71 +130,133 @@ void simpleFactor(mpz_class n, vector<Factor> & factors, uint64_t factoringLimit
     merge_factors(factors); //sorts factors and merges any <p,x>,<p,y> into <p,x+y>
 }
 
-// Perform simple trial factoring
-uint64_t fullFactor(mpz_class & base, vector<Factor> & baseFactors, mpz_class & exponent, uint64_t factoringLimit, vector<Factor> & factors) {
-    factors.clear();
+typedef struct {
+    mpz_class *base;
+    vector<Factor> *baseFactors;
+    mpz_class *divisor;
+    mpz_class *exponent;
+    mpz_class *exponentPlusOne;
+    uint64_t factoringLimit;
+    vector<Factor> *resultFactors;
+    uint64_t nextThousand;
+    uint64_t totalFactorCount;
+    pthread_mutex_t resultFactorsMutex;
+    pthread_mutex_t nextThousandMutex;
+} FullFactorData;
 
-    mpz_class divisor = 1;
-    mpz_class exponentPlusOne = exponent + 1;
+static void *entryPoint(void *threadInfo) {
+    FullFactorData *data;
+    data = (FullFactorData *) threadInfo;
+
     mpz_class tmp;
 
-    uint64_t totalFactorCount = 0;
+    while (true) {
+        if (pthread_mutex_lock(&(data->nextThousandMutex)) != 0) {
+            cerr << "Unable to lock loop mutex. Exiting." << endl;
+            exit(2);
+        }
+        uint64_t nextThousand = data->nextThousand;
+        uint64_t start = nextThousand * 1000;
+        uint64_t finish = (nextThousand + 1) * 1000;
+        if (start > data->factoringLimit) {
+            pthread_mutex_unlock(&(data->nextThousandMutex));
+            pthread_exit(0);
+        }
+        data->nextThousand++;
+        pthread_mutex_unlock(&(data->nextThousandMutex));
 
-    vector<Factor>::size_type i;
-    uint64_t j;
+        primesieve::iterator it(start, finish);
+        uint64_t prime = it.next_prime();
+        for (; prime < finish; prime = it.next_prime()) {
+            mpz_class candidate(prime);
+            bool doesDivideThisPrime;
+            int divideAmount = -1;
+            do {
+                mpz_class firstAddend = 1;
+                mpz_class modulus = *(data->divisor) * candidate;
+                for (vector<Factor>::size_type i = 0; i < data->baseFactors->size(); i++) {
+                    mpz_class div = (*data->baseFactors)[i].first;
+                    for (uint64_t j = 0; j < (*data->baseFactors)[i].second; j++) {
+                        mpz_powm(tmp.get_mpz_t(), div.get_mpz_t(), data->exponentPlusOne->get_mpz_t(), modulus.get_mpz_t());
+                        if (mpz_cmp_ui(tmp.get_mpz_t(), 0) == 0) { // we want to avoid negative numbers
+                            tmp = modulus - 1;
+                        } else if (mpz_cmp_ui(tmp.get_mpz_t(), 1) == 0) { // special case: in this case, we can break out early, since the product will be 0 if a single factor is 0
+                            firstAddend = 0;
+                            break;
+                        } else {
+                            tmp--;
+                        }
+                        firstAddend *= tmp;
+                        // for bases with tons of factors, we could do
+                        //     firstAddend %= modulus;
+                        // here, at least sometimes
+                    }
+                }
+                mpz_powm(tmp.get_mpz_t(), data->base->get_mpz_t(), data->exponent->get_mpz_t(), modulus.get_mpz_t());
+                mpz_class secondAddend = modulus - tmp * *(data->divisor);
+                mpz_class sum = firstAddend + secondAddend;
+                sum %= modulus;
+                doesDivideThisPrime = mpz_cmp_ui(sum.get_mpz_t(), 0) == 0;
+                divideAmount++; // this will also be increased if the division is unsuccessful, that's why we start with -1
+                candidate *= prime;
+            } while (doesDivideThisPrime); // the number could divide n and n² and n³...
 
-    for (i = 0; i < baseFactors.size(); i++) {
+            if (divideAmount > 0) {
+                if (pthread_mutex_lock(&(data->resultFactorsMutex)) != 0) {
+                    cerr << "Unable to lock vector mutex. Exiting." << endl;
+                    exit(2);
+                }
+                foundFactor(*(data->resultFactors), mpz_class(prime), divideAmount);
+                data->totalFactorCount += divideAmount;
+                pthread_mutex_unlock(&(data->resultFactorsMutex));
+            }
+        }
+    }
+}
+
+// Perform simple trial factoring
+uint64_t fullFactor(mpz_class base, vector<Factor> baseFactors, mpz_class exponent, uint64_t factoringLimit, vector<Factor> & resultFactors, uint64_t threadCount = 1) {
+    resultFactors.clear();
+
+    mpz_class divisor = 1;
+
+    for (vector<Factor>::size_type i = 0; i < baseFactors.size(); i++) {
         mpz_class factorMinusOne = baseFactors[i].first - 1;
-        for (j = 0; j < baseFactors[i].second; j++) {
+        for (uint64_t j = 0; j < baseFactors[i].second; j++) {
             divisor *= factorMinusOne;
         }
     }
 
-    primesieve::iterator it;
-    uint64_t prime = it.next_prime();
+    FullFactorData data;
+    data.base = &base;
+    data.baseFactors = &baseFactors;
+    data.divisor = &divisor;
+    data.exponent = &exponent;
+    mpz_class exponentPlusOne = exponent + 1;
+    data.exponentPlusOne = &exponentPlusOne;
+    data.factoringLimit = factoringLimit;
+    data.resultFactors = &resultFactors;
+    data.nextThousand = 0;
+    data.totalFactorCount = 0;
 
-    bool fullyFactored = false;
-    for (; prime < factoringLimit; prime = it.next_prime()) {
-        mpz_class candidate(prime);
-        bool doesDivideThisPrime;
-        int divideAmount = -1;
-        do {
-            mpz_class firstAddend = 1;
-            mpz_class modulus = divisor * candidate;
-            for (i = 0; i < baseFactors.size(); i++) {
-                mpz_class div = baseFactors[i].first;
-                for (j = 0; j < baseFactors[i].second; j++) {
-                    mpz_powm(tmp.get_mpz_t(), div.get_mpz_t(), exponentPlusOne.get_mpz_t(), modulus.get_mpz_t());
-                    if (mpz_cmp_ui(tmp.get_mpz_t(), 0) == 0) { // we want to avoid negative numbers
-                        tmp = modulus - 1;
-                    } else if (mpz_cmp_ui(tmp.get_mpz_t(), 1) == 0) { // special case: in this case, we can break out early, since the product will be 0 if a single factor is 0
-                        firstAddend = 0;
-                        break;
-                    } else {
-                        tmp--;
-                    }
-                    firstAddend *= tmp;
-                    // for bases with tons of factors, we could do
-                    //     firstAddend %= modulus;
-                    // here, at least sometimes
-                }
-            }
-            mpz_powm(tmp.get_mpz_t(), base.get_mpz_t(), exponent.get_mpz_t(), modulus.get_mpz_t());
-            mpz_class secondAddend = modulus - tmp * divisor;
-            mpz_class sum = firstAddend + secondAddend;
-            sum %= modulus;
-            doesDivideThisPrime = mpz_cmp_ui(sum.get_mpz_t(), 0) == 0;
-            divideAmount++; // this will also be increased if the division is unsuccessful, that's why we start with -1
-            candidate *= prime;
-        } while (doesDivideThisPrime); // the number could divide n and n² and n³...
+    pthread_mutex_init(&(data.resultFactorsMutex), NULL);
+    pthread_mutex_init(&(data.nextThousandMutex), NULL);
 
-        if (divideAmount > 0) {
-            foundFactor(factors, mpz_class(prime), divideAmount);
-            totalFactorCount += divideAmount;
-        }
+    pthread_t *threads = (pthread_t *)malloc(threadCount * sizeof(pthread_t));
+    uint64_t threadNum;
+    for (threadNum = 0; threadNum < threadCount; threadNum++) {
+        pthread_create(&(threads[threadNum]), NULL, &entryPoint, &data);
+    }
+    for (threadNum = 0; threadNum < threadCount; threadNum++) {
+        pthread_join(threads[threadNum], NULL);
     }
 
-    return totalFactorCount;
+    merge_factors(resultFactors);
+
+    pthread_mutex_destroy(&(data.resultFactorsMutex));
+    pthread_mutex_destroy(&(data.nextThousandMutex));
+
+    return data.totalFactorCount;
 }
 
 // Multiply out the factor vector
@@ -225,7 +290,7 @@ void sigma(vector<Factor> & factors, mpz_class & s, mpz_class & n) {
 
 // Print help
 void print_help() {
-    cout << "usage: verifyPrimePowerAbundance <base> <exponent> [<limit>]" << endl;
+    cout << "usage: powerTrialFactoring <base> <exponent> [<limit>] [<threadCount>]" << endl;
 }
 
 #define DEFAULT_TF_LIMIT 100000
@@ -248,16 +313,23 @@ int main(int argc, char ** argv) {
 
     uint64_t factoringLimit;
     if (argc > 3) {
-        factoringLimit = atol(argv[3]);
+        factoringLimit = stol(argv[3]);
     } else {
         factoringLimit = DEFAULT_TF_LIMIT;
+    }
+
+    uint64_t threadCount;
+    if (argc > 4) {
+        threadCount = stol(argv[4]);
+    } else {
+        threadCount = 1;
     }
 
     vector<Factor> baseFactors;
     simpleFactor(base, baseFactors, factoringLimit);
 
     vector<Factor> resultFactors;
-    uint64_t totalFactorCount = fullFactor(base, baseFactors, exponent, factoringLimit, resultFactors);
+    uint64_t totalFactorCount = fullFactor(base, baseFactors, exponent, factoringLimit, resultFactors, threadCount);
     vector<Factor>::size_type uniqueFactorCount = resultFactors.size();
 
     if (resultFactors.empty()) {
