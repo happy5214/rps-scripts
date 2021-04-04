@@ -23,6 +23,8 @@
 #include <gmpxx.h>
 #include <primesieve.hpp>
 
+#include "arg_parser.h"
+
 using namespace std;
 
 // Factor typedef
@@ -158,7 +160,7 @@ static void *entryPoint(void *threadInfo) {
         uint64_t nextThousand = data->nextThousand;
         uint64_t start = nextThousand * 1000;
         uint64_t finish = (nextThousand + 1) * 1000;
-        if (start > data->factoringLimit) {
+        if (start >= data->factoringLimit) {
             pthread_mutex_unlock(&(data->nextThousandMutex));
             pthread_exit(0);
         }
@@ -290,40 +292,72 @@ void sigma(vector<Factor> & factors, mpz_class & s, mpz_class & n) {
 
 // Print help
 void print_help() {
-    cout << "usage: powerTrialFactoring <base> <exponent> [<limit>] [<threadCount>]" << endl;
+    cout << "usage: powerTrialFactoring <base> [<exponent> | -x <exponentFile>] [-l <limit>] [-t <threadCount>]" << endl
+         << "<limit> defaults to 100k; <threadCount> defaults to 1." << endl;
 }
 
 #define DEFAULT_TF_LIMIT 100000
 
 int main(int argc, char ** argv) {
-    // Validate argument count
-    if (argc < 3) {
-        print_help();
+    // Parse arguments
+    const Arg_parser::Option options[] = {
+        { 'x', "exponentFile", Arg_parser::yes },
+        { 'l', "limit",        Arg_parser::yes },
+        { 't', "threadCount",  Arg_parser::yes },
+        {   0, 0,              Arg_parser::no    }
+    };
+
+    const Arg_parser parser( argc, argv, options );
+    if (parser.error().size()) {
+        cerr << "Argument error: " << parser.error() << endl;
         return 1;
     }
 
-    // Load command-line arguments
+    string exponentFilename = "";
+    uint64_t factoringLimit = DEFAULT_TF_LIMIT;
+    uint64_t threadCount = 1;
+
+    int argind;
+
+    for (argind = 0; argind < parser.arguments(); ++argind ) {
+        const int code = parser.code(argind);
+        if (!code) {
+            break;
+        }
+        switch (code) {
+            case 'x': exponentFilename = parser.argument(argind); break;
+            case 'l': factoringLimit = stol(parser.argument(argind)); break;
+            case 't': threadCount = stol(parser.argument(argind)); break;
+            default :
+                cerr << "Uncaught option: " << code << endl;
+        }
+    } // end process options
+
+    string arg = parser.argument( argind++ );
     mpz_class base;
-    base.set_str(argv[1], 10);
+    base.set_str(arg, 10);
 
-    vector<Factor> exponentFactors;
-    parseExponent(exponentFactors, argv[2]);
     mpz_class exponent;
+    vector<Factor> exponentFactors;
+    arg = parser.argument( argind );
+    if (!arg.empty()) {
+        parseExponent(exponentFactors, arg);
+    } else if (!exponentFilename.empty()) {
+        ifstream exponentFile(exponentFilename);
+        if (!exponentFile.is_open()) {
+            cerr << "ERROR: couldn't open exponent file for reading!" << endl;
+            return 2;
+        }
+        string line;
+        getline(exponentFile, line);
+        exponentFile.close();
+        parseExponent(exponentFactors, line);
+    } else {
+        cerr << "ERROR: Cannot find exponent!" << endl;
+        print_help();
+        return 1;
+    }
     multiply(exponentFactors, exponent);
-
-    uint64_t factoringLimit;
-    if (argc > 3) {
-        factoringLimit = stol(argv[3]);
-    } else {
-        factoringLimit = DEFAULT_TF_LIMIT;
-    }
-
-    uint64_t threadCount;
-    if (argc > 4) {
-        threadCount = stol(argv[4]);
-    } else {
-        threadCount = 1;
-    }
 
     vector<Factor> baseFactors;
     simpleFactor(base, baseFactors, factoringLimit);
@@ -337,6 +371,16 @@ int main(int argc, char ** argv) {
     } else {
         string resultFactorString = getBaseFactorString(resultFactors);
         cout << "d = " << resultFactorString << " * remainder up to limit=" << factoringLimit << endl;
+
+        mpz_class n, s, partial;
+        sigma(resultFactors, s, partial); //calculate sigma(n) and partial = product(factors)
+        n = s - partial;
+        mpq_class abundance(n, partial);
+        if (cmp(abundance, 1) > 0) {
+            cout << "Index 1 of " << base.get_str() << "^" << exponent << " is abundant! (" << abundance.get_d() << ")" << endl;
+        } else {
+            cout << "Index 1 of " << base.get_str() << "^" << exponent << " is not abundant. (" << abundance.get_d() << ")" << endl;
+        }
     }
 
     return 0;
