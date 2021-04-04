@@ -16,7 +16,7 @@ all: powerAbundance powerTrialFactoring verifyPrimePowerAbundance
 powerAbundance: powerAbundance.o
 	$(CXX) -o $@ $^ $(LIBS)
 
-powerTrialFactoring: powerTrialFactoring.o $(PRIMESIEVE_OBJS)
+powerTrialFactoring: powerTrialFactoring.o arg_parser.o $(PRIMESIEVE_OBJS)
 	$(CXX) -o $@ $^ $(LIBS) $(LIBS2)
 
 verifyPrimePowerAbundance: verifyPrimePowerAbundance.o
