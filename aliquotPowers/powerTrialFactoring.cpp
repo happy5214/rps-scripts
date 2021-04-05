@@ -277,11 +277,15 @@ void sigma(vector<Factor> & factors, mpz_class & s, mpz_class & n) {
     n = 1;
     s = 1;
     for (vector<Factor>::size_type j = 0; j < factors.size(); ++j) {
-        t = 1;
-        mpz_pow_ui(tmp.get_mpz_t(), factors[j].first.get_mpz_t(), factors[j].second + 1);
-        tmp -= 1;
-        tmp2 = factors[j].first - 1;
-        mpz_divexact(t.get_mpz_t(), tmp.get_mpz_t(), tmp2.get_mpz_t());
+        if (factors[j].second == 1) {
+            t = factors[j].first + 1;
+        } else {
+            t = 1;
+            mpz_pow_ui(tmp.get_mpz_t(), factors[j].first.get_mpz_t(), factors[j].second + 1);
+            tmp -= 1;
+            tmp2 = factors[j].first - 1;
+            mpz_divexact(t.get_mpz_t(), tmp.get_mpz_t(), tmp2.get_mpz_t());
+        }
 
         s *= t;
 
