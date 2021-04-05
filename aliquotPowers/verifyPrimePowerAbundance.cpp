@@ -59,11 +59,15 @@ void sigma(FactorVector & factors, mpz_class & s, mpz_class & n) {
     n = 1;
     s = 1;
     for (FactorVector::size_type j = 0; j < factors.size(); ++j) {
-        t = 1;
-        mpz_pow_ui(tmp.get_mpz_t(), factors[j].first.get_mpz_t(), factors[j].second + 1);
-        tmp -= 1;
-        tmp2 = factors[j].first - 1;
-        mpz_divexact(t.get_mpz_t(), tmp.get_mpz_t(), tmp2.get_mpz_t());
+        if (factors[j].second == 1) {
+            t = factors[j].first + 1;
+        } else {
+            t = 1;
+            mpz_pow_ui(tmp.get_mpz_t(), factors[j].first.get_mpz_t(), factors[j].second + 1);
+            tmp -= 1;
+            tmp2 = factors[j].first - 1;
+            mpz_divexact(t.get_mpz_t(), tmp.get_mpz_t(), tmp2.get_mpz_t());
+        }
 
         s *= t;
 
@@ -94,10 +98,11 @@ int main(int argc, char ** argv) {
     mpz_class n, s, partial;
     sigma(factors, s, partial); //calculate sigma(n) and partial = product(factors)
     n = s - partial;
+    mpq_class abundance(n, partial);
     if (n > partial) {
-        cout << "Index 1 of " << base.get_str() << "^" << exponent << " is abundant!" << endl;
+        cout << "Index 1 of " << base.get_str() << "^" << exponent << " is abundant! (" << abundance.get_d() << ")" << endl;
     } else {
-        cout << "Index 1 of " << base.get_str() << "^" << exponent << " is not abundant." << endl;
+        cout << "Index 1 of " << base.get_str() << "^" << exponent << " is not abundant. (" << abundance.get_d() << ")" << endl;
     }
 
     // Validate divisibility
