@@ -60,7 +60,7 @@ def parse_formatted_fftlen(fftlen: str) -> int:
 def get_fftlen_from_test(k: int, n: int) -> Optional[int]:
     """Get an FFT length from parsing the output of an LLR test."""
     try:
-        proc = subprocess.run(['./llr', f'-w{temp_dir_name}', '-d', f'-q{k}*2^{n}-1'], capture_output=True, timeout=2)
+        proc = subprocess.run(['./llr', '-oNoSaveFile=1', f'-w{temp_dir_name}', '-d', f'-q{k}*2^{n}-1'], capture_output=True, timeout=2)
         output = proc.stdout
     except subprocess.TimeoutExpired as ex:
         output = ex.output
@@ -107,11 +107,12 @@ def loop(k: int, fftlen_max: Optional[int], n_max: Optional[int], n_min: Optiona
         next_fftlen = last_fftlen
         while (fftlen_max and last_fftlen <= fftlen_max) or (n_max and start_n <= n_max):
             while next_fftlen == last_fftlen:
+                last_good_n = next_n
                 next_n = int(next_n * 1.02)
                 next_fftlen = get_fftlen_from_test(k, next_n) or last_fftlen
                 if VERBOSE:
                     print(f'n={next_n}, FFT={next_fftlen}')
-            left_n, test_n = binary_search(k, next_fftlen, start_n, next_n)
+            left_n, test_n = binary_search(k, next_fftlen, last_good_n, next_n)
             if last_fftlen == 32:
                 first_n = test_n - 1
                 while get_fftlen_from_test(k, first_n) is None:
