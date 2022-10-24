@@ -81,6 +81,8 @@ def binary_search(k: int, fftlen: int, start: int, finish: int) -> Tuple[int, in
     while left < right:
         n = int((left + right) / 2)
         n_fft = get_fftlen_from_test(k, n)
+        if VERBOSE:
+            print(f'n={n}, FFT={n_fft}')
         while n_fft is None:
             if old_n == n:
                 return n, right
@@ -88,8 +90,6 @@ def binary_search(k: int, fftlen: int, start: int, finish: int) -> Tuple[int, in
                 old_n = n
             n += 1
             n_fft = get_fftlen_from_test(k, n)
-        if VERBOSE:
-            print(f'n={n}, FFT={n_fft}')
         if n_fft < fftlen:
             left = n + 1
         else:
@@ -114,10 +114,7 @@ def loop(k: int, fftlen_max: Optional[int], n_max: Optional[int], n_min: Optiona
                     print(f'n={next_n}, FFT={next_fftlen}')
             left_n, test_n = binary_search(k, next_fftlen, last_good_n, next_n)
             if last_fftlen == 32:
-                first_n = test_n - 1
-                while get_fftlen_from_test(k, first_n) is None:
-                    first_n -= 1
-                print(f'{k} {first_n}', file=testinput)
+                print(f'{k} {left_n}', file=testinput)
             print(f'{k} {test_n}', file=testinput)
             mersenne_left_n = int(fftlen_lib.mersenne(last_fftlen, left_n))
             print(f'{last_fftlen:>8} {mersenne_left_n:>9}', file=maxlen)
