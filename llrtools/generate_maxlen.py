@@ -32,7 +32,7 @@ import sys
 import tempfile
 from typing import Optional, Tuple
 
-import fftlen as fftlen_lib
+from fftlen import FFTLengthK
 
 # Globals
 VERBOSE = False
@@ -97,26 +97,26 @@ def binary_search(k: int, fftlen: int, start: int, finish: int) -> Tuple[int, in
     return left, left
 
 
-def loop(k: int, fftlen_max: Optional[int], n_max: Optional[int], n_min: Optional[int]) -> None:
+def loop(fftlen_k: FFTLengthK, fftlen_max: Optional[int], n_max: Optional[int], n_min: Optional[int]) -> None:
     """Loop until the maximum FFT length is reached."""
     with open('testinput.new.txt', 'wt') as testinput, open('maxlen.new.txt', 'wt') as maxlen:
         print('1000000000000:M:1:2:258', file=testinput)
-        start_n = n_min or fftlen_lib.n_max(32, 700)
-        last_fftlen = get_fftlen_from_test(k, n_min) if n_min else 32
+        start_n = n_min or fftlen_k.n_max(32, 700)
+        last_fftlen = get_fftlen_from_test(fftlen_k.k, n_min) if n_min else 32
         next_n = start_n
         next_fftlen = last_fftlen
         while (fftlen_max and last_fftlen <= fftlen_max) or (n_max and start_n <= n_max):
             while next_fftlen == last_fftlen:
                 last_good_n = next_n
                 next_n = int(next_n * 1.02)
-                next_fftlen = get_fftlen_from_test(k, next_n) or last_fftlen
+                next_fftlen = get_fftlen_from_test(fftlen_k.k, next_n) or last_fftlen
                 if VERBOSE:
                     print(f'n={next_n}, FFT={next_fftlen}')
-            left_n, test_n = binary_search(k, next_fftlen, last_good_n, next_n)
+            left_n, test_n = binary_search(fftlen_k.k, next_fftlen, last_good_n, next_n)
             if last_fftlen == 32:
-                print(f'{k} {left_n}', file=testinput)
-            print(f'{k} {test_n}', file=testinput)
-            mersenne_left_n = int(fftlen_lib.mersenne(last_fftlen, left_n))
+                print(f'{fftlen_k.k} {left_n}', file=testinput)
+            print(f'{fftlen_k.k} {test_n}', file=testinput)
+            mersenne_left_n = int(fftlen_k.mersenne(last_fftlen, left_n))
             print(f'{last_fftlen:>8} {mersenne_left_n:>9}', file=maxlen)
             print(f'FFT={last_fftlen} done.')
             last_fftlen = next_fftlen
@@ -139,11 +139,11 @@ def start() -> None:
     n_max = args.n
     n_min = args.m
     k = args.k
-    fftlen_lib.change_k(k)
+    fftlen_k = FFTLengthK(k)
     with tempfile.TemporaryDirectory() as tmpdirname:
         global temp_dir_name
         temp_dir_name = tmpdirname
-        loop(k, fftlen_max, n_max, n_min)
+        loop(fftlen_k, fftlen_max, n_max, n_min)
 
 
 if __name__ == '__main__':

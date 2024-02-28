@@ -27,27 +27,25 @@
 import math
 
 
-# Globals
-log2k = math.log(1, 2)
+class FFTLengthK(object):
+    def __init__(self, k: int) -> None:
+        self.k = k
 
+    def __int__(self) -> int:
+        return self.k
 
-# Functions
-def adjust(fftlen: int) -> float:
-    return (log2k + log2k * (fftlen / 2.0))
+    @property
+    def log2k(self) -> float:
+        return math.log(self.k, 2)
 
+    def _adjust(self, fftlen: int) -> float:
+        return (self.log2k + self.log2k * (fftlen / 2.0))
 
-def n_max(fftlen: int, mersenne: int) -> float:
-    return mersenne - adjust(fftlen)
+    def n_max(self, fftlen: int, mersenne: int) -> float:
+        return mersenne - self._adjust(fftlen)
 
+    def n_max_zero_padded(self, fftlen: int, mersenne: int) -> float:
+        return (mersenne + 0.3*fftlen)/2.0
 
-def n_max_zero_padded(fftlen: int, mersenne: int) -> float:
-    return (mersenne + 0.3*fftlen)/2.0
-
-
-def mersenne(fftlen: int, n_max: int) -> float:
-    return n_max + adjust(fftlen)
-
-
-def change_k(new_k: int) -> None:
-    global log2k
-    log2k = math.log(new_k, 2)
+    def mersenne(self, fftlen: int, n_max: int) -> float:
+        return n_max + self._adjust(fftlen)

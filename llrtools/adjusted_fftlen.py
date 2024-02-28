@@ -26,7 +26,7 @@
 import math
 import sys
 
-import fftlen as fftlen_lib
+from fftlen import FFTLengthK
 
 
 max_data = []
@@ -40,26 +40,26 @@ def load_max_file() -> None:
             max_data.append(tuple(map(int, nums)))
 
 
-def nmax(fftlen: int, mersenne_n: int, k: int) -> float:
+def nmax(fftlen: int, mersenne_n: int, fftlen_k: FFTLengthK) -> float:
     """Calculate the adjusted maximum n for the given k and FFT length."""
-    if k < 2**20:
-        return fftlen_lib.n_max(fftlen, mersenne_n)
+    if fftlen_k.k < 2**20:
+        return fftlen_k.n_max(fftlen, mersenne_n)
     else:
-        return fftlen_lib.n_max_zero_padded(fftlen, mersenne_n)
+        return fftlen_k.n_max_zero_padded(fftlen, mersenne_n)
 
 
-def list_fftlens(k: int) -> None:
+def list_fftlens(fftlen_k: FFTLengthK) -> None:
     """List FFT lengths for the given k."""
-    print("FFT lengths for \033[3mk\033[m={}".format(k))
+    print("FFT lengths for \033[3mk\033[m={}".format(fftlen_k.k))
     for fftlen, mersenne_n in max_data:
-        print("{:>8} {:>9}".format(fftlen, int(nmax(fftlen, mersenne_n, k))))
+        print("{:>8} {:>9}".format(fftlen, int(nmax(fftlen, mersenne_n, fftlen_k))))
 
 
 def main() -> None:
     k = int(sys.argv[1])
-    fftlen_lib.change_k(k)
+    fftlen_k = FFTLengthK(k)
     load_max_file()
-    list_fftlens(k)
+    list_fftlens(fftlen_k)
 
 
 if __name__ == '__main__':
