@@ -2,7 +2,7 @@
 """Script to print out max n values for FFT lengths adjusted for a given k."""
 # MIT License
 #
-# Copyright (c) 2018-2020 Alexander Jones
+# Copyright (c) 2018-2020, 2024 Alexander Jones
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal

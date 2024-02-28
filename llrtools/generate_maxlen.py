@@ -2,7 +2,7 @@
 """Script to generate maxlen.txt and LLR test input for use with LLRTools."""
 # MIT License
 #
-# Copyright (c) 2020 Alexander Jones
+# Copyright (c) 2020, 2024 Alexander Jones
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal

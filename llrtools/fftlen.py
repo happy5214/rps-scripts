@@ -1,7 +1,7 @@
 """FFT length adjustment routines."""
 # MIT License
 #
-# Copyright (c) 2015, 2020 Alexander Jones
+# Copyright (c) 2015, 2020, 2024 Alexander Jones
 #
 # Based on formulas from LLRTools by Thomas Ritschel.
 #
